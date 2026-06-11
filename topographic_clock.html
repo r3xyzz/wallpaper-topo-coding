@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Topographic Clock</title>
+  <link rel="stylesheet" href="topographic_clock.css">
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="clock">
+      <pre id="code-block"><code>&lt;link rel="stylesheet" href="topographic_clock.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div id="wrap"&gt;
+    &lt;canvas id="c"&gt;&lt;/canvas&gt;
+    &lt;div id="clock"&gt;
+      &lt;div id="day-name"&gt;<span id="day-value">DAY</span>&lt;/div&gt;
+      &lt;div id="date-line"&gt;<span id="date-value">00</span> _ <span id="month-value">MONTH</span> / <span id="year-value">0000</span>&lt;/div&gt;
+      &lt;div id="time-line"&gt;- <span id="hour-value">00</span>:<span id="minute-value">00</span>:<span id="second-value">00</span> -&lt;/div&gt;
+      &lt;div id="progress-line"&gt;day progress: <span id="progress-value">00</span>%&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;script src="topographic_clock.js"&gt;&lt;/script&gt;
+&lt;/body&gt;</code></pre>
+    </div>
+  </div>
+  <script src="topographic_clock.js"></script>
+</body>
+</html>
