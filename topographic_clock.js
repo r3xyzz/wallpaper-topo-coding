@@ -15,8 +15,16 @@ const LINES = 28;
 const SPEED = 0.00018;
 
 function resize() {
-  W = canvas.width = wrap.offsetWidth;
-  H = canvas.height = wrap.offsetHeight;
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = wrap.clientWidth;
+  const cssHeight = wrap.clientHeight;
+  W = cssWidth;
+  H = cssHeight;
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+  canvas.style.width = `${cssWidth}px`;
+  canvas.style.height = `${cssHeight}px`;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 resize();
 window.addEventListener('resize', resize);

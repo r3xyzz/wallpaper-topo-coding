@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Topographic Clock</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #f5f3ee;
+      overflow: hidden;
+    }
+    #wrap {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: rgb(245, 243, 238);
+    }
+    canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+    #clock {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+      width: min(92vw, 1100px);
+      max-height: 88vh;
+    }
+    #code-block {
+      margin: 0;
+      font-family: 'Courier New', monospace;
+      font-size: clamp(13px, 1.35vw, 22px);
+      line-height: 1.72;
+      letter-spacing: 0.015em;
+      color: #111;
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: inline-block;
+      text-align: left;
+      max-width: 100%;
+      max-height: 88vh;
+    }
+    #progress-line {
+      margin-top: 2px;
+    }
+    @media (orientation: landscape) {
+      #clock {
+        width: min(88vw, 1180px);
+      }
+      #code-block {
+        font-size: clamp(13px, 1.15vw, 23px);
+        line-height: 1.68;
+      }
+    }
+    @media (orientation: portrait) {
+      #clock {
+        width: min(96vw, 760px);
+        top: 48%;
+      }
+      #code-block {
+        font-size: clamp(11px, 2.6vw, 17px);
+        line-height: 1.55;
+        letter-spacing: 0.01em;
+      }
+    }
+    @media (max-width: 700px) {
+      #clock {
+        width: min(96vw, 900px);
+      }
+      #code-block {
+        font-size: clamp(12px, 2.8vw, 16px);
+        line-height: 1.65;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <div id="clock">
+      <pre id="code-block"><code>&lt;link rel="stylesheet" href="topographic_clock.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div id="wrap"&gt;
+    &lt;canvas id="c"&gt;&lt;/canvas&gt;
+    &lt;div id="clock"&gt;
+      &lt;div id="day-name"&gt;<span id="day-value">DAY</span>&lt;/div&gt;
+      &lt;div id="date-line"&gt;<span id="date-value">00</span> _ <span id="month-value">MONTH</span> / <span id="year-value">0000</span>&lt;/div&gt;
+      &lt;div id="time-line"&gt;- <span id="hour-value">00</span>:<span id="minute-value">00</span>:<span id="second-value">00</span> -&lt;/div&gt;
+      &lt;div id="progress-line"&gt;day progress: <span id="progress-value">00</span>%&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;script src="topographic_clock.js"&gt;&lt;/script&gt;
+&lt;/body&gt;</code></pre>
+    </div>
+  </div>
+  <script>
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const wrap = document.getElementById('wrap');
+    const dayValue = document.getElementById('day-value');
+    const dateValue = document.getElementById('date-value');
+    const monthValue = document.getElementById('month-value');
+    const yearValue = document.getElementById('year-value');
+    const hourValue = document.getElementById('hour-value');
+    const minuteValue = document.getElementById('minute-value');
+    const secondValue = document.getElementById('second-value');
+    const progressValue = document.getElementById('progress-value');
+
+    let W, H, t = 0;
+    const LINES = 14;
+    const SPEED = 0.00018;
+    const state = {
+      bg: { r: 245, g: 243, b: 238 },
+      line: { r: 26, g: 26, b: 26 }
+    };
+
+    function rgbString(color) {
+      return `rgb(${color.r}, ${color.g}, ${color.b})`;
+    }
+
+    function parseWallpaperColor(value) {
+      if (!value) return null;
+      const parts = String(value).trim().split(/\s+/).map(Number);
+      if (parts.length < 3 || parts.some((part) => Number.isNaN(part))) return null;
+      return {
+        r: Math.max(0, Math.min(255, Math.round(parts[0] * 255))),
+        g: Math.max(0, Math.min(255, Math.round(parts[1] * 255))),
+        b: Math.max(0, Math.min(255, Math.round(parts[2] * 255)))
+      };
+    }
+
+    function saveColors() {
+      localStorage.setItem('topographicClockColors', JSON.stringify(state));
+    }
+
+    function loadColors() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('topographicClockColors'));
+        if (!stored) return;
+        if (stored.bg) state.bg = { ...state.bg, ...stored.bg };
+        if (stored.line) state.line = { ...state.line, ...stored.line };
+      } catch (error) {
+        // ignore invalid stored values
+      }
+    }
+
+    function syncCanvasBackground() {
+      wrap.style.background = rgbString(state.bg);
+      document.body.style.background = rgbString(state.bg);
+    }
+
+    function applyColors() {
+      syncCanvasBackground();
+      saveColors();
+    }
+
+    loadColors();
+    applyColors();
+
+    window.wallpaperPropertyListener = {
+      applyUserProperties: function(properties) {
+        if (properties.backgroundcolor) {
+          const color = parseWallpaperColor(properties.backgroundcolor.value);
+          if (color) state.bg = color;
+        }
+        if (properties.linecolor) {
+          const color = parseWallpaperColor(properties.linecolor.value);
+          if (color) state.line = color;
+        }
+        applyColors();
+      }
+    };
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      const cssWidth = wrap.clientWidth;
+      const cssHeight = wrap.clientHeight;
+      W = cssWidth;
+      H = cssHeight;
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${cssHeight}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function noise(x, y, z) {
+      const X = Math.floor(x) & 255;
+      const Y = Math.floor(y) & 255;
+      x -= Math.floor(x);
+      y -= Math.floor(y);
+      const u = fade(x), v = fade(y);
+      const a = p[X] + Y, b = p[X + 1] + Y;
+      return lerp(v,
+        lerp(u, grad(p[a], x, y, z), grad(p[b], x - 1, y, z)),
+        lerp(u, grad(p[a + 1], x, y - 1, z), grad(p[b + 1], x - 1, y - 1, z))
+      );
+    }
+    function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+    function lerp(t, a, b) { return a + t * (b - a); }
+    function grad(hash, x, y, z) {
+      const h = hash & 15, u = h < 8 ? x : y, v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+      return ((h & 1) ? -u : u) + ((h & 2) ? -v : v);
+    }
+    const perm = [];
+    for (let i = 0; i < 256; i++) perm[i] = i;
+    for (let i = 255; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [perm[i], perm[j]] = [perm[j], perm[i]];
+    }
+    const p = new Array(512);
+    for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+
+    function getHeight(x, y, time) {
+      const s = 0.0025;
+      return (
+        noise(x * s + time * 0.3, y * s + time * 0.2, time * 0.1) * 0.60 +
+        noise(x * s * 2.1 - time * 0.15, y * s * 2.1 + time * 0.25, time * 0.13) * 0.40
+      );
+    }
+
+    function drawContours() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = rgbString(state.bg);
+      ctx.fillRect(0, 0, W, H);
+
+      const GRID = 7;
+      const cols = Math.ceil(W / GRID) + 2;
+      const rows = Math.ceil(H / GRID) + 2;
+
+      const field = [];
+      for (let row = 0; row <= rows; row++) {
+        field[row] = [];
+        for (let col = 0; col <= cols; col++) {
+          field[row][col] = getHeight(col * GRID, row * GRID, t);
+        }
+      }
+
+      ctx.strokeStyle = rgbString(state.line);
+      ctx.lineWidth = 0.7;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+
+      for (let li = 0; li < LINES; li++) {
+        const level = -0.9 + (li / (LINES - 1)) * 1.8;
+        ctx.beginPath();
+
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < cols; col++) {
+            const x0 = col * GRID, y0 = row * GRID;
+            const v00 = field[row][col] - level;
+            const v10 = field[row][col + 1] - level;
+            const v01 = field[row + 1][col] - level;
+            const v11 = field[row + 1][col + 1] - level;
+
+            const idx = (v00 > 0 ? 8 : 0) | (v10 > 0 ? 4 : 0) | (v11 > 0 ? 2 : 0) | (v01 > 0 ? 1 : 0);
+            if (idx === 0 || idx === 15) continue;
+
+            function interp(a, b, va, vb) {
+              if (Math.abs(va - vb) < 0.00001) return a;
+              return a + (b - a) * (-va / (vb - va));
+            }
+
+            const pts = {
+              N: [interp(x0, x0 + GRID, v00, v10), y0],
+              E: [x0 + GRID, interp(y0, y0 + GRID, v10, v11)],
+              S: [interp(x0 + GRID, x0, v11, v01), y0 + GRID],
+              W: [x0, interp(y0, y0 + GRID, v00, v01)]
+            };
+
+            let segs = [];
+            switch (idx) {
+              case 1: case 14: segs = [[pts.S, pts.W]]; break;
+              case 2: case 13: segs = [[pts.E, pts.S]]; break;
+              case 3: case 12: segs = [[pts.E, pts.W]]; break;
+              case 4: case 11: segs = [[pts.N, pts.E]]; break;
+              case 6: case 9: segs = [[pts.N, pts.S]]; break;
+              case 7: case 8: segs = [[pts.N, pts.W]]; break;
+              case 5: segs = [[pts.N, pts.E], [pts.S, pts.W]]; break;
+              case 10: segs = [[pts.N, pts.W], [pts.E, pts.S]]; break;
+            }
+
+            for (const seg of segs) {
+              ctx.moveTo(seg[0][0], seg[0][1]);
+              ctx.lineTo(seg[1][0], seg[1][1]);
+            }
+          }
+        }
+        ctx.stroke();
+        ctx.beginPath();
+      }
+    }
+
+    const TARGET_FPS = 30;
+    const FRAME_STEP = 1000 / TARGET_FPS;
+    let lastFrame = 0;
+
+    function loop(ts) {
+      if (!lastFrame) lastFrame = ts;
+      const elapsed = ts - lastFrame;
+
+      if (elapsed >= FRAME_STEP) {
+        t += SPEED * elapsed;
+        lastFrame = ts;
+        drawContours();
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+    const months = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+      'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      const day = days[now.getDay()];
+      const date = String(now.getDate()).padStart(2, '0');
+      const month = months[now.getMonth()];
+      const year = now.getFullYear();
+      const minutesSinceMidnight = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      const progress = Math.round((minutesSinceMidnight / (24 * 60)) * 100);
+
+      dayValue.textContent = day;
+      dateValue.textContent = date;
+      monthValue.textContent = month;
+      yearValue.textContent = year;
+      hourValue.textContent = h;
+      minuteValue.textContent = m;
+      secondValue.textContent = s;
+      progressValue.textContent = String(progress).padStart(2, '0');
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+    drawContours();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
