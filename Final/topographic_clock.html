@@ -115,8 +115,8 @@
     const progressValue = document.getElementById('progress-value');
 
     let W, H, t = 0;
-    const LINES = 14;
-    const SPEED = 0.00018;
+    const LINES = 28;
+    const SPEED = 0.00006;
     const state = {
       bg: { r: 245, g: 243, b: 238 },
       line: { r: 26, g: 26, b: 26 }
@@ -223,9 +223,11 @@
 
     function getHeight(x, y, time) {
       const s = 0.0025;
+      const drift = time * 0.06;
       return (
-        noise(x * s + time * 0.3, y * s + time * 0.2, time * 0.1) * 0.60 +
-        noise(x * s * 2.1 - time * 0.15, y * s * 2.1 + time * 0.25, time * 0.13) * 0.40
+        noise(x * s + drift, y * s + drift * 0.8, time * 0.05) * 0.60 +
+        noise(x * s * 2.1 - drift * 0.7, y * s * 2.1 + drift * 0.9, time * 0.07) * 0.25 +
+        noise(x * s * 4.3 + drift * 0.4, y * s * 4.3 - drift * 0.5, time * 0.09) * 0.15
       );
     }
 
@@ -234,7 +236,7 @@
       ctx.fillStyle = rgbString(state.bg);
       ctx.fillRect(0, 0, W, H);
 
-      const GRID = 7;
+      const GRID = 3;
       const cols = Math.ceil(W / GRID) + 2;
       const rows = Math.ceil(H / GRID) + 2;
 
@@ -301,20 +303,14 @@
       }
     }
 
-    const TARGET_FPS = 30;
-    const FRAME_STEP = 1000 / TARGET_FPS;
     let lastFrame = 0;
 
     function loop(ts) {
       if (!lastFrame) lastFrame = ts;
       const elapsed = ts - lastFrame;
-
-      if (elapsed >= FRAME_STEP) {
-        t += SPEED * elapsed;
-        lastFrame = ts;
-        drawContours();
-      }
-
+      lastFrame = ts;
+      t += SPEED * elapsed;
+      drawContours();
       requestAnimationFrame(loop);
     }
 
