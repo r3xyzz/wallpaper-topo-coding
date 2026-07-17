@@ -1,0 +1,17 @@
+{
+  "properties": {
+    "outlinecolor": {
+      "text": "Color del contorno",
+      "type": "color",
+      "value": "1 1 1"
+    },
+    "outlinesize": {
+      "text": "Tamaño del contorno",
+      "type": "slider",
+      "value": 1.2,
+      "min": 0.25,
+      "max": 5,
+      "step": 0.1
+    }
+  }
+}

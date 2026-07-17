@@ -17,6 +17,8 @@
       height: 100vh;
       overflow: hidden;
       background: rgb(245, 243, 238);
+      --outline-color: #ffffff;
+      --outline-size: 1.2px;
     }
     canvas {
       position: absolute;
@@ -29,7 +31,7 @@
       transform: translate(-50%, -50%);
       text-align: center;
       pointer-events: none;
-      mix-blend-mode: multiply;
+      mix-blend-mode: normal;
       width: min(92vw, 1100px);
       max-height: 88vh;
     }
@@ -46,6 +48,22 @@
       text-align: left;
       max-width: 100%;
       max-height: 88vh;
+      text-shadow:
+        0 calc(-1 * var(--outline-size)) 0 var(--outline-color),
+        0 var(--outline-size) 0 var(--outline-color),
+        calc(-1 * var(--outline-size)) 0 0 var(--outline-color),
+        var(--outline-size) 0 0 var(--outline-color),
+        calc(-1 * var(--outline-size)) calc(-1 * var(--outline-size)) 0 var(--outline-color),
+        var(--outline-size) calc(-1 * var(--outline-size)) 0 var(--outline-color),
+        calc(-1 * var(--outline-size)) var(--outline-size) 0 var(--outline-color),
+        var(--outline-size) var(--outline-size) 0 var(--outline-color);
+      -webkit-text-stroke: var(--outline-size) var(--outline-color);
+      paint-order: stroke fill;
+    }
+
+    #code-block,
+    #code-block * {
+      -webkit-text-stroke: var(--outline-size) var(--outline-color);
     }
     #progress-line {
       margin-top: 2px;
@@ -115,11 +133,13 @@
     const progressValue = document.getElementById('progress-value');
 
     let W, H, t = 0;
-    const LINES = 28;
+    const LINES = 20;
     const SPEED = 0.00006;
     const state = {
       bg: { r: 245, g: 243, b: 238 },
-      line: { r: 26, g: 26, b: 26 }
+      line: { r: 26, g: 26, b: 26 },
+      outline: { r: 255, g: 255, b: 255 },
+      outlineSize: 1.2
     };
 
     function rgbString(color) {
@@ -137,32 +157,17 @@
       };
     }
 
-    function saveColors() {
-      localStorage.setItem('topographicClockColors', JSON.stringify(state));
-    }
-
-    function loadColors() {
-      try {
-        const stored = JSON.parse(localStorage.getItem('topographicClockColors'));
-        if (!stored) return;
-        if (stored.bg) state.bg = { ...state.bg, ...stored.bg };
-        if (stored.line) state.line = { ...state.line, ...stored.line };
-      } catch (error) {
-        // ignore invalid stored values
-      }
-    }
-
     function syncCanvasBackground() {
       wrap.style.background = rgbString(state.bg);
       document.body.style.background = rgbString(state.bg);
+      wrap.style.setProperty('--outline-color', rgbString(state.outline));
+      wrap.style.setProperty('--outline-size', `${state.outlineSize}px`);
     }
 
     function applyColors() {
       syncCanvasBackground();
-      saveColors();
     }
 
-    loadColors();
     applyColors();
 
     window.wallpaperPropertyListener = {
@@ -174,6 +179,14 @@
         if (properties.linecolor) {
           const color = parseWallpaperColor(properties.linecolor.value);
           if (color) state.line = color;
+        }
+        if (properties.outlinecolor) {
+          const color = parseWallpaperColor(properties.outlinecolor.value);
+          if (color) state.outline = color;
+        }
+        if (properties.outlinesize) {
+          const size = Number(properties.outlinesize.value);
+          if (!Number.isNaN(size)) state.outlineSize = Math.max(0.25, Math.min(5, size));
         }
         applyColors();
       }
@@ -222,12 +235,12 @@
     for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
 
     function getHeight(x, y, time) {
-      const s = 0.0025;
-      const drift = time * 0.06;
+      const s = 0.0017;
+      const drift = time * 0.035;
       return (
-        noise(x * s + drift, y * s + drift * 0.8, time * 0.05) * 0.60 +
-        noise(x * s * 2.1 - drift * 0.7, y * s * 2.1 + drift * 0.9, time * 0.07) * 0.25 +
-        noise(x * s * 4.3 + drift * 0.4, y * s * 4.3 - drift * 0.5, time * 0.09) * 0.15
+        noise(x * s + drift, y * s + drift * 0.75, time * 0.04) * 0.72 +
+        noise(x * s * 1.8 - drift * 0.55, y * s * 1.8 + drift * 0.6, time * 0.06) * 0.20 +
+        noise(x * s * 3.2 + drift * 0.25, y * s * 3.2 - drift * 0.35, time * 0.08) * 0.08
       );
     }
 
@@ -236,7 +249,7 @@
       ctx.fillStyle = rgbString(state.bg);
       ctx.fillRect(0, 0, W, H);
 
-      const GRID = 3;
+      const GRID = 5;
       const cols = Math.ceil(W / GRID) + 2;
       const rows = Math.ceil(H / GRID) + 2;
 
@@ -249,7 +262,7 @@
       }
 
       ctx.strokeStyle = rgbString(state.line);
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = 0.85;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
 
@@ -304,12 +317,25 @@
     }
 
     let lastFrame = 0;
+    let loopPhase = 0;
+    let loopDirection = 1;
+    const LOOP_DURATION_MS = 180000;
 
     function loop(ts) {
       if (!lastFrame) lastFrame = ts;
-      const elapsed = ts - lastFrame;
+      const elapsed = Math.min(ts - lastFrame, 1000);
       lastFrame = ts;
-      t += SPEED * elapsed;
+
+      loopPhase += loopDirection * elapsed;
+      if (loopPhase >= LOOP_DURATION_MS) {
+        loopPhase = LOOP_DURATION_MS;
+        loopDirection = -1;
+      } else if (loopPhase <= 0) {
+        loopPhase = 0;
+        loopDirection = 1;
+      }
+
+      t = loopPhase * SPEED;
       drawContours();
       requestAnimationFrame(loop);
     }
