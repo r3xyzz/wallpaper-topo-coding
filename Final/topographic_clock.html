@@ -68,6 +68,9 @@
     #progress-line {
       margin-top: 2px;
     }
+    #city-line {
+      margin-top: 2px;
+    }
     @media (orientation: landscape) {
       #clock {
         width: min(88vw, 1180px);
@@ -113,6 +116,7 @@
       &lt;div id="date-line"&gt;<span id="date-value">00</span> _ <span id="month-value">MONTH</span> / <span id="year-value">0000</span>&lt;/div&gt;
       &lt;div id="time-line"&gt;- <span id="hour-value">00</span>:<span id="minute-value">00</span>:<span id="second-value">00</span> -&lt;/div&gt;
       &lt;div id="progress-line"&gt;day progress: <span id="progress-value">00</span>%&lt;/div&gt;
+      &lt;div id="city-line"&gt;city: <span id="city-value">MADRID</span> // <span id="temperature-value">--</span>°C&lt;/div&gt;
     &lt;/div&gt;
   &lt;/div&gt;
   &lt;script src="topographic_clock.js"&gt;&lt;/script&gt;
@@ -131,6 +135,8 @@
     const minuteValue = document.getElementById('minute-value');
     const secondValue = document.getElementById('second-value');
     const progressValue = document.getElementById('progress-value');
+    const cityValue = document.getElementById('city-value');
+    const temperatureValue = document.getElementById('temperature-value');
 
     let W, H, t = 0;
     const LINES = 20;
@@ -139,7 +145,8 @@
       bg: { r: 245, g: 243, b: 238 },
       line: { r: 26, g: 26, b: 26 },
       outline: { r: 255, g: 255, b: 255 },
-      outlineSize: 1.2
+      outlineSize: 1.2,
+      cityName: 'Madrid'
     };
 
     function rgbString(color) {
@@ -168,7 +175,42 @@
       syncCanvasBackground();
     }
 
+    function setWeatherText(cityName, temperature) {
+      cityValue.textContent = cityName ? cityName.toUpperCase() : 'MISSING';
+      temperatureValue.textContent = Number.isFinite(temperature) ? Math.round(temperature) : '--';
+    }
+
+    async function updateWeather(cityName) {
+      const query = (cityName || '').trim();
+      if (!query) {
+        setWeatherText('CITY', NaN);
+        return;
+      }
+
+      try {
+        const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=es&format=json`);
+        const geoData = await geoResponse.json();
+        const place = geoData && geoData.results && geoData.results[0];
+
+        if (!place) {
+          setWeatherText(query, NaN);
+          return;
+        }
+
+        const weatherResponse = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m&temperature_unit=celsius&timezone=auto`
+        );
+        const weatherData = await weatherResponse.json();
+        const temperature = weatherData && weatherData.current ? weatherData.current.temperature_2m : NaN;
+        const label = place.name || query;
+        setWeatherText(label, temperature);
+      } catch (error) {
+        setWeatherText(query, NaN);
+      }
+    }
+
     applyColors();
+    updateWeather(state.cityName);
 
     window.wallpaperPropertyListener = {
       applyUserProperties: function(properties) {
@@ -187,6 +229,10 @@
         if (properties.outlinesize) {
           const size = Number(properties.outlinesize.value);
           if (!Number.isNaN(size)) state.outlineSize = Math.max(0.25, Math.min(5, size));
+        }
+        if (properties.cityname) {
+          state.cityName = String(properties.cityname.value || '').trim() || 'Madrid';
+          updateWeather(state.cityName);
         }
         applyColors();
       }

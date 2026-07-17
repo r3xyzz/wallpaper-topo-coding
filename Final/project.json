@@ -12,6 +12,11 @@
       "min": 0.25,
       "max": 5,
       "step": 0.1
+    },
+    "cityname": {
+      "text": "Ciudad",
+      "type": "text",
+      "value": "Madrid"
     }
   }
 }
